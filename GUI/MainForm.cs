@@ -68,7 +68,7 @@ namespace OpenHardwareMonitor.GUI {
 
     private UserOption logSensors;
     private UserRadioGroup loggingInterval;
-    private Logger logger;
+    private ILogger logger;
 
     private bool selectionDragging = false;
 
@@ -159,7 +159,8 @@ namespace OpenHardwareMonitor.GUI {
         wmiProvider = new WmiProvider(computer);
       }
 
-      logger = new Logger(computer);
+      //logger = new Logger(computer);
+      logger = new InfluxLogger(computer);
 
       plotColorPalette = new Color[13];
       plotColorPalette[0] = Color.Blue;

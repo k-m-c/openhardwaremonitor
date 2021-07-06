@@ -16,7 +16,7 @@ using System.Linq;
 using OpenHardwareMonitor.Hardware;
 
 namespace OpenHardwareMonitor.Utilities {
-  public class Logger {
+  public class Logger: ILogger {
 
     private const string fileNameFormat = 
       "OpenHardwareMonitorLog-{0:yyyy-MM-dd}.csv";

@@ -65,6 +65,7 @@
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
+    <Reference Include="System.Net.Http" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
   </ItemGroup>
@@ -120,6 +121,7 @@
     <Compile Include="Properties\AssemblyVersion.cs" />
     <Compile Include="Utilities\HttpServer.cs" />
     <Compile Include="Utilities\HttpUtility.cs" />
+    <Compile Include="Utilities\InfluxLogger.cs" />
     <Compile Include="Utilities\Logger.cs" />
     <Compile Include="Utilities\PersistentSettings.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
