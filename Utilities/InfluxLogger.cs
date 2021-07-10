@@ -18,152 +18,69 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using OpenHardwareMonitor.Hardware;
-
-public interface ILogger {
-  void Log();
-  TimeSpan LoggingInterval { get; set; }
-}
+using System.Runtime.Serialization.Json;
+using System.Runtime.Serialization;
 
 namespace OpenHardwareMonitor.Utilities {
-  public abstract class LoggerBase: ILogger{
-    protected readonly IComputer computer;
 
-    protected DateTime day = DateTime.MinValue;
-    protected string fileName;
-    protected string[] identifiers;
-    protected ISensor[] sensors;
-
-    protected DateTime lastLoggedTime = DateTime.MinValue;
-
-    public TimeSpan LoggingInterval { get; set; }
-
-    public LoggerBase(IComputer computer) {
-      this.computer = computer;
-      this.computer.HardwareAdded += HardwareAdded;
-      this.computer.HardwareRemoved += HardwareRemoved;
-    }
-
-    private void HardwareRemoved(IHardware hardware) {
-      hardware.SensorAdded -= SensorAdded;
-      hardware.SensorRemoved -= SensorRemoved;
-      foreach (ISensor sensor in hardware.Sensors)
-        SensorRemoved(sensor);
-      foreach (IHardware subHardware in hardware.SubHardware)
-        HardwareRemoved(subHardware);
-    }
-
-    private void HardwareAdded(IHardware hardware) {
-      foreach (ISensor sensor in hardware.Sensors)
-        SensorAdded(sensor);
-      hardware.SensorAdded += SensorAdded;
-      hardware.SensorRemoved += SensorRemoved;
-      foreach (IHardware subHardware in hardware.SubHardware)
-        HardwareAdded(subHardware);
-    }
-
-    private void SensorAdded(ISensor sensor) {
-      if (sensors == null)
-        return;
-
-      for (int i = 0; i < sensors.Length; i++) {
-        if (sensor.Identifier.ToString() == identifiers[i])
-          sensors[i] = sensor;
-      }
-    }
-
-    private void SensorRemoved(ISensor sensor) {
-      if (sensors == null)
-        return;
-
-      for (int i = 0; i < sensors.Length; i++) {
-        if (sensor == sensors[i])
-          sensors[i] = null;
-      }
-    }
-
-    public abstract void Log();
+  public class InfluxConfig {
+    public string Url { get; set; }
+    public int Port { get; set; }
+    public string Db { get; set; }
+    public string Username { get; set; }
+    public string Password { get; set; }
   }
 
   public class InfluxLogger : LoggerBase {
+    private string configFileName = @"influx.conf";
 
-    private const string fileNameFormat =
-      "klog-{0:yyyy-MM-dd}.csv";
+    private InfluxConfig _config;
+
+    private InfluxConfig GetConfig() {
+      var config = new InfluxConfig() {
+        Url = "localhost",
+        Port = 8086,
+        Db = "openhwmon",
+        Username = "",
+        Password = ""
+      }; //default values
+
+      if (!File.Exists(configFileName)) {
+        var ms = new MemoryStream();
+        var ser = new DataContractJsonSerializer(typeof(InfluxConfig));
+        ser.WriteObject(ms, config);
+        byte[] data = ms.ToArray();
+        ms.Close();
+        var json = Encoding.UTF8.GetString(data, 0, data.Length);
+
+        try {
+          File.WriteAllText(configFileName, json);
+        } finally {
+
+        }
+      } else {
+        try {
+          var json = File.ReadAllText(configFileName);
+          DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(InfluxConfig));
+          var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+          config = ser.ReadObject(ms) as InfluxConfig;
+          ms.Close();
+        }
+        catch(Exception ex) {
+          return config;
+        }
+      }
+
+      return config;
+    }
 
     public InfluxLogger(IComputer computer) : base(computer){
-      
     }
-
-    private static string GetFileName(DateTime date) {
-      return AppDomain.CurrentDomain.BaseDirectory +
-        Path.DirectorySeparatorChar + string.Format(fileNameFormat, date);
-    }
-
-    private bool OpenExistingLogFile() {
-      if (!File.Exists(fileName))
-        return false;
-
-      try {
-        String line;
-        using (StreamReader reader = new StreamReader(fileName))
-          line = reader.ReadLine();
-
-        if (string.IsNullOrEmpty(line))
-          return false;
-
-        identifiers = line.Split(',').Skip(1).ToArray();
-      } catch {
-        identifiers = null;
-        return false;
-      }
-
-      if (identifiers.Length == 0) {
-        identifiers = null;
-        return false;
-      }
-
-      sensors = new ISensor[identifiers.Length];
-      SensorVisitor visitor = new SensorVisitor(sensor => {
-        for (int i = 0; i < identifiers.Length; i++)
-          if (sensor.Identifier.ToString() == identifiers[i])
-            sensors[i] = sensor;
-      });
-      visitor.VisitComputer(computer);
-      return true;
-    }
-
-    //private void CreateNewLogFile() {
-    //  IList<ISensor> list = new List<ISensor>();
-    //  SensorVisitor visitor = new SensorVisitor(sensor => {
-    //    list.Add(sensor);
-    //  });
-    //  visitor.VisitComputer(computer);
-    //  sensors = list.ToArray();
-    //  identifiers = sensors.Select(s => s.Identifier.ToString()).ToArray();
-
-    //  //using (StreamWriter writer = new StreamWriter(fileName, false)) {
-    //  //  writer.Write(",");
-    //  //  for (int i = 0; i < sensors.Length; i++) {
-    //  //    writer.Write(sensors[i].Identifier);
-    //  //    if (i < sensors.Length - 1)
-    //  //      writer.Write(",");
-    //  //    else
-    //  //      writer.WriteLine();
-    //  //  }
-
-    //  //  writer.Write("Time,");
-    //  //  for (int i = 0; i < sensors.Length; i++) {
-    //  //    writer.Write('"');
-    //  //    writer.Write(sensors[i].Name);
-    //  //    writer.Write('"');
-    //  //    if (i < sensors.Length - 1)
-    //  //      writer.Write(",");
-    //  //    else
-    //  //      writer.WriteLine();
-    //  //  }
-    //  //}
-    //}
 
     async public override void Log() {
+
+      _config = GetConfig();
+
       IList<ISensor> list = new List<ISensor>();
       SensorVisitor visitor = new SensorVisitor(sensor => {
         list.Add(sensor);
@@ -177,27 +94,6 @@ namespace OpenHardwareMonitor.Utilities {
         return;
       fileName = "log.txt";
 
-      //try {
-      //  using (StreamWriter writer = new StreamWriter(new FileStream(fileName,
-      //    FileMode.Append, FileAccess.Write, FileShare.ReadWrite))) {
-      //    writer.Write(now.ToString("G", CultureInfo.InvariantCulture));
-      //    writer.Write(",");
-      //    for (int i = 0; i < sensors.Length; i++) {
-      //      if (sensors[i] != null) {
-      //        float? value = sensors[i].Value;
-      //        if (value.HasValue)
-      //          writer.Write(
-      //            value.Value.ToString("R", CultureInfo.InvariantCulture));
-      //      }
-      //      if (i < sensors.Length - 1)
-      //        writer.Write(",");
-      //      else
-      //        writer.WriteLine();
-      //    }
-      //  }
-      //} catch (IOException) { }
-
-
       var computer_name = Environment.MachineName.Replace(' ', '_').Replace('-', '_');
       try {
         StringBuilder sb = new StringBuilder();
@@ -205,7 +101,10 @@ namespace OpenHardwareMonitor.Utilities {
         sb.Append("motherboard,computer=");
         sb.Append(computer_name);
         sb.Append(",sensor=name");
-        var mb_name = computer.Hardware[0].Name.Replace(" ", "_").Replace("-", "_").Replace("#", "_");
+
+        IHardware mb = computer.Hardware.SingleOrDefault(x => x.HardwareType == HardwareType.Mainboard);
+        var mb_name = mb.Name.Replace(" ", "_").Replace("-", "_").Replace("#", "_");
+
         sb.Append(",device=");
         sb.Append(mb_name);
         sb.Append(",device_id=");
@@ -215,17 +114,24 @@ namespace OpenHardwareMonitor.Utilities {
         sb.Append("value=0");
         sb.Append("\n");
 
+        float? powerTotal = 0.0f;
+
         for (int i = 0; i < sensors.Length; i++) {
           if (sensors[i] != null) {
+
+            if (sensors[i].SensorType == SensorType.Power) {
+              powerTotal += sensors[i].Value.HasValue ? sensors[i].Value : 0;
+            }
+
             var id = sensors[i].Identifier.ToString();
             id = id.Split('/')[1];
             sb.Append(id);
             sb.Append(",computer=");
             sb.Append(computer_name);
+
             sb.Append(@",sensor=");
             var sensor = sensors[i].Identifier.ToString();
-            var breakdown = sensor.Split('/');
-            //   /cpu/0/temperature/0
+            var breakdown = sensor.Split('/');  //   /cpu/0/temperature/0
             int device_number = 0;
             if (int.TryParse(breakdown[2], out device_number)) {
               sensor = breakdown[3];
@@ -233,20 +139,26 @@ namespace OpenHardwareMonitor.Utilities {
               sensor = breakdown[2];
             }
             sb.Append(sensor);
+
             sb.Append(@",device=");
             var device_name = sensors[i].Hardware.Name.Replace(' ', '_').Replace('-', '_');
             sb.Append(device_name);
+
             sb.Append(",device_id=");
             sb.Append(computer_name + "_");
             sb.Append(device_name + "_");
             sb.Append(device_number);
+
             sb.Append(",sensor_number=");
             var sensor_number = 0;
             int.TryParse(breakdown[breakdown.Length - 1], out sensor_number);
             sb.Append(sensor_number);
+
             sb.Append(@",openhw_id=");
             sb.Append(sensors[i].Identifier.ToString().Replace('/', '_'));
+
             sb.Append(@" ");
+
             sb.Append(sensors[i].Name.Replace(" ", "_").Replace('#', '0'));
             sb.Append("=");
             float? value = sensors[i].Value;
@@ -259,9 +171,18 @@ namespace OpenHardwareMonitor.Utilities {
           }
         }
 
+        sb.Append($"power,computer={computer_name} total={powerTotal.Value}\n");
+
         var postData = sb.ToString();
         StringContent data = new StringContent(postData, Encoding.UTF8, "text/plain");
-        var url = "http://MKM-DEV-CORE:8086/write?db=openhwmon&source=" + computer_name;
+        var url = $"http://{_config.Url}:{_config.Port}/write?db={_config.Db}&source={computer_name}";
+
+        if (!string.IsNullOrEmpty(_config.Username)) {
+          if (!string.IsNullOrEmpty(_config.Password)) {
+            url += $"&u={_config.Username}&p={_config.Password}";
+          }
+        }
+
         var client = new HttpClient();
 
         var response = await client.PostAsync(url, data);

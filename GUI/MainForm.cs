@@ -67,8 +67,10 @@ namespace OpenHardwareMonitor.GUI {
     private HttpServer server;
 
     private UserOption logSensors;
+    private UserOption influxLogSensors;
     private UserRadioGroup loggingInterval;
-    private ILogger logger;
+    private ILogger fileLogger;
+    private ILogger influxLogger;
 
     private bool selectionDragging = false;
 
@@ -159,8 +161,8 @@ namespace OpenHardwareMonitor.GUI {
         wmiProvider = new WmiProvider(computer);
       }
 
-      //logger = new Logger(computer);
-      logger = new InfluxLogger(computer);
+      fileLogger = new Logger(computer);
+      influxLogger = new InfluxLogger(computer);
 
       plotColorPalette = new Color[13];
       plotColorPalette[0] = Color.Blue;
@@ -297,6 +299,9 @@ namespace OpenHardwareMonitor.GUI {
       logSensors = new UserOption("logSensorsMenuItem", false, logSensorsMenuItem,
         settings);
 
+      influxLogSensors = new UserOption("influxLogSensorsMenuItem", false, influxLogSensorsMenuItem,
+        settings);
+
       loggingInterval = new UserRadioGroup("loggingInterval", 0,
         new[] { log1sMenuItem, log2sMenuItem, log5sMenuItem, log10sMenuItem,
         log30sMenuItem, log1minMenuItem, log2minMenuItem, log5minMenuItem, 
@@ -305,19 +310,58 @@ namespace OpenHardwareMonitor.GUI {
         settings);
       loggingInterval.Changed += (sender, e) => {
         switch (loggingInterval.Value) {
-          case 0: logger.LoggingInterval = new TimeSpan(0, 0, 1); break;
-          case 1: logger.LoggingInterval = new TimeSpan(0, 0, 2); break;
-          case 2: logger.LoggingInterval = new TimeSpan(0, 0, 5); break;
-          case 3: logger.LoggingInterval = new TimeSpan(0, 0, 10); break;
-          case 4: logger.LoggingInterval = new TimeSpan(0, 0, 30); break;
-          case 5: logger.LoggingInterval = new TimeSpan(0, 1, 0); break;
-          case 6: logger.LoggingInterval = new TimeSpan(0, 2, 0); break;
-          case 7: logger.LoggingInterval = new TimeSpan(0, 5, 0); break;
-          case 8: logger.LoggingInterval = new TimeSpan(0, 10, 0); break;
-          case 9: logger.LoggingInterval = new TimeSpan(0, 30, 0); break;
-          case 10: logger.LoggingInterval = new TimeSpan(1, 0, 0); break;
-          case 11: logger.LoggingInterval = new TimeSpan(2, 0, 0); break;
-          case 12: logger.LoggingInterval = new TimeSpan(6, 0, 0); break;
+          case 0:
+            fileLogger.LoggingInterval = new TimeSpan(0, 0, 1);
+            influxLogger.LoggingInterval = new TimeSpan(0, 0, 1);
+            break;
+          case 1:
+            fileLogger.LoggingInterval = new TimeSpan(0, 0, 2);
+            influxLogger.LoggingInterval = new TimeSpan(0, 0, 2);
+            break;
+          case 2:
+            fileLogger.LoggingInterval = new TimeSpan(0, 0, 5);
+            influxLogger.LoggingInterval = new TimeSpan(0, 0, 5);
+            break;
+          case 3:
+            fileLogger.LoggingInterval = new TimeSpan(0, 0, 10);
+            influxLogger.LoggingInterval = new TimeSpan(0, 0, 10);
+            break;
+          case 4:
+            fileLogger.LoggingInterval = new TimeSpan(0, 0, 30);
+            influxLogger.LoggingInterval = new TimeSpan(0, 0, 30);
+            break;
+          case 5:
+            fileLogger.LoggingInterval = new TimeSpan(0, 1, 0);
+            influxLogger.LoggingInterval = new TimeSpan(0, 1, 0);
+            break;
+          case 6:
+            fileLogger.LoggingInterval = new TimeSpan(0, 2, 0);
+            influxLogger.LoggingInterval = new TimeSpan(0, 2, 0);
+            break;
+          case 7:
+            fileLogger.LoggingInterval = new TimeSpan(0, 5, 0);
+            influxLogger.LoggingInterval = new TimeSpan(0, 5, 0);
+            break;
+          case 8:
+            fileLogger.LoggingInterval = new TimeSpan(0, 10, 0);
+            influxLogger.LoggingInterval = new TimeSpan(0, 10, 0);
+            break;
+          case 9:
+            fileLogger.LoggingInterval = new TimeSpan(0, 30, 0);
+            influxLogger.LoggingInterval = new TimeSpan(0, 30, 0);
+            break;
+          case 10:
+            fileLogger.LoggingInterval = new TimeSpan(1, 0, 0);
+            influxLogger.LoggingInterval = new TimeSpan(1, 0, 0);
+            break;
+          case 11:
+            fileLogger.LoggingInterval = new TimeSpan(2, 0, 0);
+            influxLogger.LoggingInterval = new TimeSpan(2, 0, 0);
+            break;
+          case 12:
+            fileLogger.LoggingInterval = new TimeSpan(6, 0, 0);
+            influxLogger.LoggingInterval = new TimeSpan(6, 0, 0);
+            break;
         }
       };
 
@@ -587,7 +631,11 @@ namespace OpenHardwareMonitor.GUI {
 
 
       if (logSensors != null && logSensors.Value && delayCount >= 4)
-        logger.Log();
+        fileLogger.Log();
+
+
+      if (influxLogSensors != null && influxLogSensors.Value && delayCount >= 4)
+        influxLogger.Log();
 
       if (delayCount < 4)
         delayCount++;

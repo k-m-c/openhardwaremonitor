@@ -16,62 +16,14 @@ using System.Linq;
 using OpenHardwareMonitor.Hardware;
 
 namespace OpenHardwareMonitor.Utilities {
-  public class Logger: ILogger {
+  public class Logger : LoggerBase, ILogger {
 
-    private const string fileNameFormat = 
+    private const string fileNameFormat =
       "OpenHardwareMonitorLog-{0:yyyy-MM-dd}.csv";
-
-    private readonly IComputer computer;
-
-    private DateTime day = DateTime.MinValue;
-    private string fileName;
-    private string[] identifiers;
-    private ISensor[] sensors;
 
     private DateTime lastLoggedTime = DateTime.MinValue;
 
-    public Logger(IComputer computer) {
-      this.computer = computer;
-      this.computer.HardwareAdded += HardwareAdded;
-      this.computer.HardwareRemoved += HardwareRemoved;      
-    }
-
-    private void HardwareRemoved(IHardware hardware) {
-      hardware.SensorAdded -= SensorAdded;
-      hardware.SensorRemoved -= SensorRemoved;
-      foreach (ISensor sensor in hardware.Sensors)
-        SensorRemoved(sensor);
-      foreach (IHardware subHardware in hardware.SubHardware)
-        HardwareRemoved(subHardware);
-    }
-
-    private void HardwareAdded(IHardware hardware) {
-      foreach (ISensor sensor in hardware.Sensors)
-        SensorAdded(sensor);
-      hardware.SensorAdded += SensorAdded;
-      hardware.SensorRemoved += SensorRemoved;
-      foreach (IHardware subHardware in hardware.SubHardware)
-        HardwareAdded(subHardware);
-    }
-
-    private void SensorAdded(ISensor sensor) {
-      if (sensors == null)
-        return;
-
-      for (int i = 0; i < sensors.Length; i++) {
-        if (sensor.Identifier.ToString() == identifiers[i])
-          sensors[i] = sensor;
-      }
-    }
-
-    private void SensorRemoved(ISensor sensor) {
-      if (sensors == null)
-        return;
-
-      for (int i = 0; i < sensors.Length; i++) {
-        if (sensor == sensors[i])
-          sensors[i] = null;
-      }
+    public Logger(IComputer computer) : base(computer) {
     }
 
     private static string GetFileName(DateTime date) {
@@ -85,12 +37,12 @@ namespace OpenHardwareMonitor.Utilities {
 
       try {
         String line;
-        using (StreamReader reader = new StreamReader(fileName)) 
-          line = reader.ReadLine(); 
-       
+        using (StreamReader reader = new StreamReader(fileName))
+          line = reader.ReadLine();
+
         if (string.IsNullOrEmpty(line))
           return false;
-        
+
         identifiers = line.Split(',').Skip(1).ToArray();
       } catch {
         identifiers = null;
@@ -144,13 +96,11 @@ namespace OpenHardwareMonitor.Utilities {
       }
     }
 
-    public TimeSpan LoggingInterval { get; set; }
-
-    public void Log() {      
+    public override void Log() {
       var now = DateTime.Now;
 
       if (lastLoggedTime + LoggingInterval - new TimeSpan(5000000) > now)
-        return;      
+        return;
 
       if (day != now.Date || !File.Exists(fileName)) {
         day = now.Date;
@@ -183,4 +133,5 @@ namespace OpenHardwareMonitor.Utilities {
       lastLoggedTime = now;
     }
   }
+
 }
